@@ -1,4 +1,4 @@
-// Fill-in information from your Blynk Template here
+// The below two fields are unique for everyone...
 #define BLYNK_TEMPLATE_ID "TMPLuzATXsAo"
 #define BLYNK_DEVICE_NAME "Smart Agriculture System"
 
@@ -9,10 +9,16 @@
 #include "BlynkEdgent.h"
 #include "DHT.h"
 
-#define DHTPIN D2
-#define DHTTYPE DHT11
 #define SOIL_MOISTURE_SENSOR A0
-#define RAIN_SENSOR D0
+#define LDR_PIN D0
+#define NIGHT_LIGHT D1
+#define DHTPIN D2
+#define RAIN_SENSOR D3
+#define DHTTYPE DHT11
+
+#define LDR_VALUE 250
+#define MOISTURE_VALUE 10
+
 
 DHT dht(DHTPIN, DHTTYPE);
 float temp, humid, soil_moisture, moist, rain;
@@ -45,12 +51,10 @@ void sendSensor(){
   Serial.println(temp);
   Serial.println(soil_moisture);
   
-  
   // Pushing all the values to Blynk Cloud
   Blynk.virtualWrite(V0, humid);
   Blynk.virtualWrite(V1, temp);
   Blynk.virtualWrite(V2, soil_moisture);
-  Blynk.virtualWrite(V3, rain);
 }
 
 
@@ -61,13 +65,35 @@ void sendSensor(){
  *  So we set should_pump_start to false.
  */
 void check_rain(){
-
   // Rain Drop Sensor -> 1: SOOKHA , 0: RAIN
   
-  if(digitalRead(RAIN_SENSOR))
+  if(digitalRead(RAIN_SENSOR)){
     should_pump_start = true;
-  else
+    Blynk.virtualWrite(V3, "NO RAIN");
+  }
+  else{
     should_pump_start = false;
+    Blynk.virtualWrite(V3, "RAIN");
+  }
+}
+
+
+/*
+ * This function checks if currently there
+ * is presence of light or not.
+ * If not, then we turn on the light 
+ * so that our plant grows as fast as possible.
+ * This is done for more yeilds
+ */
+void check_night_light(){
+  if(analogRead(LDR_PIN)<LDR_VALUE){
+    digitalWrite(NIGHT_LIGHT,HIGH);
+    Serial.println("high");
+  }
+  else{
+    digitalWrite(NIGHT_LIGHT,LOW);
+    Serial.println("low");
+  }
 }
 
 
@@ -82,7 +108,7 @@ void check_soil_moisture(){
   //  25 or below: SOOKHA
   //  25 above: GILA
   
-  if(soil_moisture < 25)
+  if(soil_moisture < MOISTURE_VALUE)
     // starts pump
     Serial.println("start");
   else
@@ -101,10 +127,17 @@ void setup()
 {
   Serial.begin(9600);
   dht.begin();
+  pinMode(NIGHT_LIGHT, OUTPUT);
+  pinMode(LDR_PIN, INPUT);
+  pinMode(RAIN_SENSOR, INPUT);
   BlynkEdgent.begin();
   delay(2000); 
   timer.setInterval(1000L, sendSensor);
   get_data();
+
+  // Just used this as 3.3V VCC
+  pinMode(D8,OUTPUT);
+  digitalWrite(D8,HIGH);
 }
 
 
@@ -114,6 +147,8 @@ void loop()
 
   get_data();
 
+  check_night_light();
+  
   check_rain();
 
   if(should_pump_start)
